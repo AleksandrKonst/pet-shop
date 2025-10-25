@@ -136,11 +136,11 @@ module.exports = {
   devServer: {
     hot: true,
     open: true,
-    historyApiFallback: true,
-    static: {
-      directory: path.join(__dirname, 'public'),
+    historyApiFallback: {
+      disableDotRule: true,
     },
     port: 3000,
     compress: true,
+    allowedHosts: 'all',
   },
 };
