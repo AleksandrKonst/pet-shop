@@ -39,7 +39,7 @@ const App: React.FC = () => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    🐕 Что то там для собак
+                    Что то там для собак
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Текст
@@ -55,7 +55,7 @@ const App: React.FC = () => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    🐱 Что то там для котов
+                    Что то там для котов
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Текст
@@ -71,7 +71,7 @@ const App: React.FC = () => {
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    🦜 Что то там для птиц
+                    Что то там для птиц
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Текст
