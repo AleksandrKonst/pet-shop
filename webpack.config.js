@@ -1,6 +1,5 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const TerserWebpackPlugin = require('terser-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
@@ -36,26 +35,7 @@ module.exports = {
       {
         test: /\.tsx?$/,
         exclude: /node_modules/,
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['@babel/preset-env', '@babel/preset-react', '@babel/preset-typescript'],
-            plugins: [isDevelopment && 'react-refresh/babel'].filter(Boolean),
-            cacheDirectory: true,
-          },
-        },
-      },
-      {
-        test: /\.(js|jsx)$/,
-        exclude: /node_modules/,
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['@babel/preset-env', '@babel/preset-react'],
-            plugins: [isDevelopment && 'react-refresh/babel'].filter(Boolean),
-            cacheDirectory: true,
-          },
-        },
+        use: 'ts-loader',
       },
       {
         test: /\.(css|scss|sass)$/,
@@ -81,7 +61,6 @@ module.exports = {
       template: './public/index.html',
       inject: true,
     }),
-    isDevelopment && new ReactRefreshWebpackPlugin(),
     !isDevelopment &&
       new MiniCssExtractPlugin({
         filename: '[name].[contenthash].css',

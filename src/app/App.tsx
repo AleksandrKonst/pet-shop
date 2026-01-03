@@ -1,7 +1,15 @@
-import React from 'react';
-import { Container, Typography, Box, Card, CardContent, Button, Stack } from '@mui/material';
+import { StrictMode, Suspense, ReactElement } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { LoginPage } from '@/pages/LoginPage';
+import { RegisterPage } from '@/pages/RegisterPage';
+import { HomePage } from '@/pages/HomePage';
+import { ProductsPage } from '@/pages/ProductsPage';
+import { CartPage } from '@/pages/CartPage';
+import { OrdersPage } from '@/pages/OrdersPage';
+import { AdminPage } from '@/pages/AdminPage';
 import './App.scss';
 
 const theme = createTheme({
@@ -15,78 +23,83 @@ const theme = createTheme({
   },
 });
 
-const App: React.FC = () => {
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Container maxWidth="lg">
-        <Box sx={{ py: 4 }}>
-          <Typography variant="h3" component="h1" gutterBottom align="center" color="primary">
-            Интернет-магазин зоотоваров
-          </Typography>
-          <Typography
-            variant="h6"
-            component="h2"
-            align="center"
-            color="text.secondary"
-            gutterBottom
-          >
-            Тут будет какой то текст
-          </Typography>
 
-          <Stack spacing={3} sx={{ mt: 2 }} direction={{ xs: 'column', md: 'row' }}>
-            <Box sx={{ flex: 1 }}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Что то там для собак
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Текст
-                  </Typography>
-                  <Button variant="contained" color="primary" sx={{ mt: 2 }}>
-                    Тык
-                  </Button>
-                </CardContent>
-              </Card>
-            </Box>
+const ProtectedRoute = ({ children }: { children: ReactElement }) => {
+  const { isAuthenticated, isLoading } = useAuth();
 
-            <Box sx={{ flex: 1 }}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Что то там для котов
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Текст
-                  </Typography>
-                  <Button variant="contained" color="primary" sx={{ mt: 2 }}>
-                    Тык
-                  </Button>
-                </CardContent>
-              </Card>
-            </Box>
+  if (isLoading) {
+    return <div>Загрузка...</div>;
+  }
 
-            <Box sx={{ flex: 1 }}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    Что то там для птиц
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Текст
-                  </Typography>
-                  <Button variant="contained" color="primary" sx={{ mt: 2 }}>
-                    Тык
-                  </Button>
-                </CardContent>
-              </Card>
-            </Box>
-          </Stack>
-        </Box>
-      </Container>
-    </ThemeProvider>
-  );
+  return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
-export default App;
+const PublicRoute = ({ children }: { children: ReactElement }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div>Загрузка...</div>;
+  }
+
+  return !isAuthenticated ? children : <Navigate to="/" />;
+};
+
+export const App = () => {
+  return (
+    <StrictMode>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <BrowserRouter>
+          <AuthProvider>
+            <Suspense fallback={<div>Загрузка...</div>}>
+              <Routes>
+                <Route
+                  path="/login"
+                  element={
+                    <PublicRoute>
+                      <LoginPage />
+                    </PublicRoute>
+                  }
+                />
+                <Route
+                  path="/register"
+                  element={
+                    <PublicRoute>
+                      <RegisterPage />
+                    </PublicRoute>
+                  }
+                />
+                <Route path="/" element={<HomePage />} />
+                <Route path="/products" element={<ProductsPage />} />
+                <Route
+                  path="/cart"
+                  element={
+                    <ProtectedRoute>
+                      <CartPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/orders"
+                  element={
+                    <ProtectedRoute>
+                      <OrdersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute>
+                      <AdminPage />
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </Suspense>
+          </AuthProvider>
+        </BrowserRouter>
+      </ThemeProvider>
+    </StrictMode>
+  );
+};
