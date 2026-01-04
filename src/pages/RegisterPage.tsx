@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
 import {
   Container,
   Box,
@@ -13,47 +13,72 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  FormHelperText,
 } from '@mui/material';
-import { useAuth } from '@/contexts/AuthContext';
+import { useRegisterMutation } from '@/store/api/authApi';
+import { useAppDispatch } from '@/store/hooks';
+import { setCredentials } from '@/store/slices/authSlice';
+
+interface RegisterFormData {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  role: 'User' | 'Manager';
+}
 
 export const RegisterPage = () => {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState<'User' | 'Manager'>('User');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  const { register } = useAuth();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const [register, { isLoading, error }] = useRegisterMutation();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  const {
+    register: registerField,
+    handleSubmit,
+    getValues,
+    formState: { errors },
+  } = useForm<RegisterFormData>({
+    mode: 'onBlur',
+    defaultValues: {
+      role: 'User',
+    },
+  });
 
-    if (password !== confirmPassword) {
-      setError('Пароли не совпадают');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Пароль должен быть не менее 6 символов');
-      return;
-    }
-
-    setIsLoading(true);
-
+  const onSubmit = async (data: RegisterFormData) => {
     try {
-      await register({ username, email, password, role });
-      navigate('/');
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message || 'Ошибка регистрации. Попробуйте снова.'
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { confirmPassword, ...registerData } = data;
+      const result = await register(registerData).unwrap();
+      dispatch(
+        setCredentials({
+          user: {
+            id: result.id,
+            username: result.username,
+            email: result.email,
+            role: result.role,
+          },
+          token: result.token,
+        })
       );
-    } finally {
-      setIsLoading(false);
+      navigate('/');
+    } catch (err) {
+      console.error('Register error:', err);
     }
+  };
+
+  const getErrorMessage = () => {
+    if (!error) return null;
+
+    if (
+      'data' in error &&
+      error.data &&
+      typeof error.data === 'object' &&
+      'message' in error.data
+    ) {
+      return String(error.data.message);
+    }
+
+    return 'Ошибка регистрации. Попробуйте снова.';
   };
 
   return (
@@ -67,17 +92,27 @@ export const RegisterPage = () => {
 
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
+                {getErrorMessage()}
               </Alert>
             )}
 
-            <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+            <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ mt: 2 }}>
               <TextField
                 fullWidth
                 label="Имя пользователя"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
+                {...registerField('username', {
+                  required: 'Имя пользователя обязательно',
+                  minLength: {
+                    value: 3,
+                    message: 'Минимум 3 символа',
+                  },
+                  maxLength: {
+                    value: 50,
+                    message: 'Максимум 50 символов',
+                  },
+                })}
+                error={!!errors.username}
+                helperText={errors.username?.message}
                 margin="normal"
               />
 
@@ -85,9 +120,15 @@ export const RegisterPage = () => {
                 fullWidth
                 label="Email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+                {...registerField('email', {
+                  required: 'Email обязателен',
+                  pattern: {
+                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                    message: 'Неверный формат email',
+                  },
+                })}
+                error={!!errors.email}
+                helperText={errors.email?.message}
                 margin="normal"
                 autoComplete="email"
               />
@@ -96,9 +137,19 @@ export const RegisterPage = () => {
                 fullWidth
                 label="Пароль"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                {...registerField('password', {
+                  required: 'Пароль обязателен',
+                  minLength: {
+                    value: 6,
+                    message: 'Минимум 6 символов',
+                  },
+                  maxLength: {
+                    value: 100,
+                    message: 'Максимум 100 символов',
+                  },
+                })}
+                error={!!errors.password}
+                helperText={errors.password?.message}
                 margin="normal"
                 autoComplete="new-password"
               />
@@ -107,23 +158,29 @@ export const RegisterPage = () => {
                 fullWidth
                 label="Подтвердите пароль"
                 type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
+                {...registerField('confirmPassword', {
+                  required: 'Подтвердите пароль',
+                  validate: value => value === getValues('password') || 'Пароли не совпадают',
+                })}
+                error={!!errors.confirmPassword}
+                helperText={errors.confirmPassword?.message}
                 margin="normal"
                 autoComplete="new-password"
               />
 
-              <FormControl fullWidth margin="normal">
+              <FormControl fullWidth margin="normal" error={!!errors.role}>
                 <InputLabel>Роль</InputLabel>
                 <Select
-                  value={role}
                   label="Роль"
-                  onChange={(e) => setRole(e.target.value as 'User' | 'Manager')}
+                  defaultValue="User"
+                  {...registerField('role', {
+                    required: 'Роль обязательна',
+                  })}
                 >
                   <MenuItem value="User">Пользователь</MenuItem>
                   <MenuItem value="Manager">Менеджер</MenuItem>
                 </Select>
+                {errors.role && <FormHelperText>{errors.role.message}</FormHelperText>}
               </FormControl>
 
               <Button
@@ -152,4 +209,3 @@ export const RegisterPage = () => {
     </Container>
   );
 };
-

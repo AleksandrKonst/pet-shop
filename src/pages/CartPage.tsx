@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -15,53 +15,46 @@ import {
   Toolbar,
   Divider,
 } from '@mui/material';
-import { useAuth } from '@/contexts/AuthContext';
-import { cartApi, ordersApi, CartSummary } from '@/services/api';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { logout } from '@/store/slices/authSlice';
+import {
+  useGetCartQuery,
+  useUpdateCartItemMutation,
+  useRemoveFromCartMutation,
+  useClearCartMutation,
+} from '@/store/api/cartApi';
+import { useCreateOrderMutation } from '@/store/api/ordersApi';
 
 export const CartPage = () => {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [cart, setCart] = useState<CartSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const user = useAppSelector(state => state.auth.user);
+
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    loadCart();
-  }, []);
-
-  const loadCart = async () => {
-    try {
-      setIsLoading(true);
-      const response = await cartApi.getCart();
-      setCart(response.data);
-    } catch (err: any) {
-      setError('Ошибка загрузки корзины');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { data: cart, isLoading } = useGetCartQuery();
+  const [updateCartItem] = useUpdateCartItemMutation();
+  const [removeFromCart] = useRemoveFromCartMutation();
+  const [clearCart] = useClearCartMutation();
+  const [createOrder, { isLoading: isCreatingOrder }] = useCreateOrderMutation();
 
   const handleUpdateQuantity = async (itemId: number, newQuantity: number) => {
     if (newQuantity < 1) return;
 
     try {
-      await cartApi.updateCartItem(itemId, newQuantity);
-      await loadCart();
-    } catch (err: any) {
-      setError('Ошибка обновления количества');
+      await updateCartItem({ id: itemId, quantity: newQuantity }).unwrap();
+    } catch (error) {
+      console.error('Error updating quantity:', error);
     }
   };
 
   const handleRemoveItem = async (itemId: number) => {
     try {
-      await cartApi.removeFromCart(itemId);
-      await loadCart();
+      await removeFromCart(itemId).unwrap();
       setSuccess('Товар удален из корзины');
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError('Ошибка удаления товара');
+    } catch (error) {
+      console.error('Error removing item:', error);
     }
   };
 
@@ -69,12 +62,11 @@ export const CartPage = () => {
     if (!window.confirm('Очистить корзину?')) return;
 
     try {
-      await cartApi.clearCart();
-      await loadCart();
+      await clearCart().unwrap();
       setSuccess('Корзина очищена');
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError('Ошибка очистки корзины');
+    } catch (error) {
+      console.error('Error clearing cart:', error);
     }
   };
 
@@ -82,17 +74,18 @@ export const CartPage = () => {
     if (!cart || cart.items.length === 0) return;
 
     try {
-      setIsLoading(true);
-      await ordersApi.createOrder();
+      await createOrder().unwrap();
       setSuccess('Заказ успешно оформлен!');
       setTimeout(() => {
         navigate('/orders');
       }, 2000);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка оформления заказа');
-    } finally {
-      setIsLoading(false);
+    } catch (error) {
+      console.error('Error creating order:', error);
     }
+  };
+
+  const handleLogout = () => {
+    dispatch(logout());
   };
 
   return (
@@ -110,7 +103,7 @@ export const CartPage = () => {
               📦 Мои заказы
             </Button>
             <Typography variant="body2">{user?.username}</Typography>
-            <Button variant="outlined" size="small" onClick={logout}>
+            <Button variant="outlined" size="small" onClick={handleLogout}>
               Выйти
             </Button>
           </Box>
@@ -118,11 +111,6 @@ export const CartPage = () => {
       </AppBar>
 
       <Container maxWidth="md" sx={{ py: 4 }}>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-            {error}
-          </Alert>
-        )}
         {success && (
           <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
             {success}
@@ -147,10 +135,16 @@ export const CartPage = () => {
         ) : (
           <>
             <Box sx={{ mb: 3 }}>
-              {cart.items.map((item) => (
+              {cart.items.map(item => (
                 <Card key={item.id} sx={{ mb: 2 }}>
                   <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="h6">{item.productName}</Typography>
                         <Typography variant="body2" color="text.secondary">
@@ -169,7 +163,7 @@ export const CartPage = () => {
                           <TextField
                             type="number"
                             value={item.quantity}
-                            onChange={(e) => {
+                            onChange={e => {
                               const val = parseInt(e.target.value);
                               if (val > 0) handleUpdateQuantity(item.id, val);
                             }}
@@ -222,9 +216,10 @@ export const CartPage = () => {
                     variant="contained"
                     size="large"
                     onClick={handleCreateOrder}
+                    disabled={isCreatingOrder}
                     sx={{ flex: 2 }}
                   >
-                    Оформить заказ
+                    {isCreatingOrder ? 'Оформление...' : 'Оформить заказ'}
                   </Button>
                 </Box>
               </CardContent>
@@ -235,4 +230,3 @@ export const CartPage = () => {
     </Box>
   );
 };
-

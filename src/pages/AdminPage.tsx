@@ -11,7 +11,8 @@ import {
   Tab,
   Paper,
 } from '@mui/material';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { logout } from '@/store/slices/authSlice';
 import { CategoriesManagement } from '@/components/admin/CategoriesManagement';
 import { ProductsManagement } from '@/components/admin/ProductsManagement';
 import { AllOrdersView } from '@/components/admin/AllOrdersView';
@@ -39,8 +40,9 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export const AdminPage = () => {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const user = useAppSelector(state => state.auth.user);
   const [currentTab, setCurrentTab] = useState(0);
 
   useEffect(() => {
@@ -68,7 +70,7 @@ export const AdminPage = () => {
             <Typography variant="body2" color="inherit">
               {user?.username} (Менеджер)
             </Typography>
-            <Button color="inherit" onClick={logout}>
+            <Button color="inherit" onClick={() => dispatch(logout())}>
               Выйти
             </Button>
           </Box>
@@ -104,4 +106,3 @@ export const AdminPage = () => {
     </Box>
   );
 };
-

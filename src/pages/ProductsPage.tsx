@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Container,
@@ -7,7 +7,6 @@ import {
   Card,
   CardContent,
   Button,
-  Grid,
   CircularProgress,
   Alert,
   FormControl,
@@ -17,52 +16,36 @@ import {
   AppBar,
   Toolbar,
 } from '@mui/material';
-import { useAuth } from '@/contexts/AuthContext';
-import { productsApi, categoriesApi, cartApi, Product, Category } from '@/services/api';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { logout } from '@/store/slices/authSlice';
+import { useGetProductsQuery } from '@/store/api/productsApi';
+import { useGetCategoryByIdQuery } from '@/store/api/categoriesApi';
+import { useAddToCartMutation } from '@/store/api/cartApi';
 
 type SortType = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc';
 
 export const ProductsPage = () => {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const user = useAppSelector(state => state.auth.user);
   const [searchParams] = useSearchParams();
   const categoryId = searchParams.get('category');
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [category, setCategory] = useState<Category | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [sortBy, setSortBy] = useState<SortType>('name-asc');
-  const [addingToCart, setAddingToCart] = useState<number | null>(null);
+  const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, [categoryId]);
+  // RTK Query hooks
+  const {
+    data: products = [],
+    isLoading,
+    error,
+  } = useGetProductsQuery(categoryId ? parseInt(categoryId) : undefined);
 
-  const loadData = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
+  const { data: category } = useGetCategoryByIdQuery(parseInt(categoryId || '0'), {
+    skip: !categoryId,
+  });
 
-      // Загрузка товаров
-      const productsResponse = await productsApi.getAll(
-        categoryId ? parseInt(categoryId) : undefined
-      );
-      setProducts(productsResponse.data);
-
-      // Загрузка информации о категории
-      if (categoryId) {
-        const categoryResponse = await categoriesApi.getById(parseInt(categoryId));
-        setCategory(categoryResponse.data);
-      }
-    } catch (err: any) {
-      setError('Ошибка загрузки товаров');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [addToCart, { isLoading: isAdding }] = useAddToCartMutation();
 
   // Сортировка товаров
   const sortedProducts = useMemo(() => {
@@ -89,15 +72,16 @@ export const ProductsPage = () => {
     }
 
     try {
-      setAddingToCart(productId);
-      await cartApi.addToCart({ productId, quantity: 1 });
+      await addToCart({ productId, quantity: 1 }).unwrap();
       setSuccess('Товар добавлен в корзину!');
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка добавления в корзину');
-    } finally {
-      setAddingToCart(null);
+    } catch (error) {
+      console.error('Error adding to cart:', error);
     }
+  };
+
+  const handleLogout = () => {
+    dispatch(logout());
   };
 
   return (
@@ -128,10 +112,8 @@ export const ProductsPage = () => {
                     </Button>
                   </>
                 )}
-                <Typography variant="body2">
-                  {user.username}
-                </Typography>
-                <Button variant="outlined" size="small" onClick={logout}>
+                <Typography variant="body2">{user.username}</Typography>
+                <Button variant="outlined" size="small" onClick={handleLogout}>
                   Выйти
                 </Button>
               </>
@@ -161,7 +143,7 @@ export const ProductsPage = () => {
             <Select
               value={sortBy}
               label="Сортировка"
-              onChange={(e) => setSortBy(e.target.value as SortType)}
+              onChange={e => setSortBy(e.target.value as SortType)}
             >
               <MenuItem value="name-asc">По названию (А-Я)</MenuItem>
               <MenuItem value="name-desc">По названию (Я-А)</MenuItem>
@@ -172,8 +154,8 @@ export const ProductsPage = () => {
         </Box>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-            {error}
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Ошибка загрузки товаров
           </Alert>
         )}
         {success && (
@@ -189,9 +171,18 @@ export const ProductsPage = () => {
         ) : sortedProducts.length === 0 ? (
           <Alert severity="info">Товары не найдены</Alert>
         ) : (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 3 }}>
-            {sortedProducts.map((product) => (
-              <Card key={product.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+              gap: 3,
+            }}
+          >
+            {sortedProducts.map(product => (
+              <Card
+                key={product.id}
+                sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+              >
                 <CardContent sx={{ flexGrow: 1 }}>
                   <Typography variant="h6" gutterBottom>
                     {product.name}
@@ -202,34 +193,41 @@ export const ProductsPage = () => {
                   <Typography variant="caption" color="text.secondary" display="block">
                     Категория: {product.categoryName}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    display="block"
+                    sx={{ mb: 2 }}
+                  >
                     В наличии: {product.stock} шт.
                   </Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="h5" color="primary">
-                        {product.price} ₽
+                  <Box
+                    sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
+                    <Typography variant="h5" color="primary">
+                      {product.price} ₽
+                    </Typography>
+                    {user?.role === 'Manager' ? (
+                      <Typography variant="caption" color="text.secondary">
+                        Менеджеры не могут покупать
                       </Typography>
-                      {user?.role === 'Manager' ? (
-                        <Typography variant="caption" color="text.secondary">
-                          Менеджеры не могут покупать
-                        </Typography>
-                      ) : (
-                        <Button
-                          variant="contained"
-                          size="small"
-                          disabled={product.stock === 0 || addingToCart === product.id}
-                          onClick={() => handleAddToCart(product.id)}
-                        >
-                          {addingToCart === product.id
-                            ? '...'
-                            : product.stock === 0
+                    ) : (
+                      <Button
+                        variant="contained"
+                        size="small"
+                        disabled={product.stock === 0 || isAdding}
+                        onClick={() => handleAddToCart(product.id)}
+                      >
+                        {isAdding
+                          ? '...'
+                          : product.stock === 0
                             ? 'Нет в наличии'
                             : user
-                            ? 'В корзину'
-                            : 'Войти'}
-                        </Button>
-                      )}
-                    </Box>
+                              ? 'В корзину'
+                              : 'Войти'}
+                      </Button>
+                    )}
+                  </Box>
                 </CardContent>
               </Card>
             ))}
@@ -239,4 +237,3 @@ export const ProductsPage = () => {
     </Box>
   );
 };
-

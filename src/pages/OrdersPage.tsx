@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -14,31 +13,19 @@ import {
   Toolbar,
   Divider,
 } from '@mui/material';
-import { useAuth } from '@/contexts/AuthContext';
-import { ordersApi, Order } from '@/services/api';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { logout } from '@/store/slices/authSlice';
+import { useGetOrdersQuery } from '@/store/api/ordersApi';
 
 export const OrdersPage = () => {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const user = useAppSelector(state => state.auth.user);
 
-  useEffect(() => {
-    loadOrders();
-  }, []);
+  const { data: orders = [], isLoading, error } = useGetOrdersQuery();
 
-  const loadOrders = async () => {
-    try {
-      setIsLoading(true);
-      const response = await ordersApi.getOrders();
-      setOrders(response.data);
-    } catch (err: any) {
-      setError('Ошибка загрузки заказов');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleLogout = () => {
+    dispatch(logout());
   };
 
   const getStatusColor = (status: string) => {
@@ -82,7 +69,7 @@ export const OrdersPage = () => {
               🛒 Корзина
             </Button>
             <Typography variant="body2">{user?.username}</Typography>
-            <Button variant="outlined" size="small" onClick={logout}>
+            <Button variant="outlined" size="small" onClick={handleLogout}>
               Выйти
             </Button>
           </Box>
@@ -92,7 +79,7 @@ export const OrdersPage = () => {
       <Container maxWidth="md" sx={{ py: 4 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
+            Ошибка загрузки заказов
           </Alert>
         )}
 
@@ -113,10 +100,17 @@ export const OrdersPage = () => {
           </Card>
         ) : (
           <Box>
-            {orders.map((order) => (
+            {orders.map(order => (
               <Card key={order.id} sx={{ mb: 3 }}>
                 <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      mb: 2,
+                    }}
+                  >
                     <Typography variant="h6">Заказ №{order.id}</Typography>
                     <Chip
                       label={getStatusText(order.status)}
@@ -124,7 +118,7 @@ export const OrdersPage = () => {
                       size="small"
                     />
                   </Box>
-                  
+
                   <Typography variant="body2" color="text.secondary" gutterBottom>
                     Дата: {new Date(order.createdAt).toLocaleString('ru-RU')}
                   </Typography>
@@ -158,7 +152,9 @@ export const OrdersPage = () => {
 
                   <Divider sx={{ my: 2 }} />
 
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box
+                    sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                  >
                     <Typography variant="h6">Итого:</Typography>
                     <Typography variant="h6" color="primary">
                       {order.totalAmount} ₽
@@ -173,4 +169,3 @@ export const OrdersPage = () => {
     </Box>
   );
 };
-

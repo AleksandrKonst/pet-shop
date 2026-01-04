@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
 import {
   Box,
   Button,
@@ -16,51 +17,53 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  FormHelperText,
 } from '@mui/material';
-import { productsApi, categoriesApi, Product, Category } from '@/services/api';
+import {
+  useGetProductsQuery,
+  useCreateProductMutation,
+  useUpdateProductMutation,
+  useDeleteProductMutation,
+} from '@/store/api/productsApi';
+import { useGetCategoriesQuery } from '@/store/api/categoriesApi';
+import type { Product } from '@/store/api/productsApi';
+
+interface ProductFormData {
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  imageUrl: string;
+  categoryId: number;
+}
 
 export const ProductsManagement = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    price: 0,
-    stock: 0,
-    imageUrl: '',
-    categoryId: 0,
+
+  const { data: products = [], isLoading } = useGetProductsQuery(undefined);
+  const { data: categories = [] } = useGetCategoriesQuery();
+  const [createProduct] = useCreateProductMutation();
+  const [updateProduct] = useUpdateProductMutation();
+  const [deleteProduct] = useDeleteProductMutation();
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    control,
+    formState: { errors },
+  } = useForm<ProductFormData>({
+    mode: 'onBlur',
   });
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setIsLoading(true);
-      const [productsRes, categoriesRes] = await Promise.all([
-        productsApi.getAll(),
-        categoriesApi.getAll(),
-      ]);
-      setProducts(productsRes.data);
-      setCategories(categoriesRes.data);
-    } catch (err) {
-      setError('Ошибка загрузки данных');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleOpenDialog = (product?: Product) => {
     if (product) {
       setEditingProduct(product);
-      setFormData({
+      reset({
         name: product.name,
         description: product.description,
         price: product.price,
@@ -70,7 +73,7 @@ export const ProductsManagement = () => {
       });
     } else {
       setEditingProduct(null);
-      setFormData({
+      reset({
         name: '',
         description: '',
         price: 0,
@@ -87,20 +90,21 @@ export const ProductsManagement = () => {
     setEditingProduct(null);
   };
 
-  const handleSave = async () => {
+  const onSubmit = async (data: ProductFormData) => {
     try {
       if (editingProduct) {
-        await productsApi.update(editingProduct.id, formData);
+        await updateProduct({ id: editingProduct.id, data }).unwrap();
         setSuccess('Товар обновлен');
       } else {
-        await productsApi.create(formData);
+        await createProduct(data).unwrap();
         setSuccess('Товар создан');
       }
       handleCloseDialog();
-      loadData();
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка сохранения');
+    } catch (error) {
+      console.error('Error saving product:', error);
+      setError('Ошибка сохранения');
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -108,12 +112,13 @@ export const ProductsManagement = () => {
     if (!window.confirm('Удалить товар?')) return;
 
     try {
-      await productsApi.delete(id);
+      await deleteProduct(id).unwrap();
       setSuccess('Товар удален');
-      loadData();
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка удаления');
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      setError('Ошибка удаления');
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -146,7 +151,7 @@ export const ProductsManagement = () => {
       </Box>
 
       <Box sx={{ display: 'grid', gap: 2 }}>
-        {products.map((product) => (
+        {products.map(product => (
           <Card key={product.id}>
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
@@ -156,18 +161,15 @@ export const ProductsManagement = () => {
                     {product.description}
                   </Typography>
                   <Typography variant="body2">
-                    Цена: <strong>{product.price} ₽</strong> | Остаток: <strong>{product.stock} шт.</strong>
+                    Цена: <strong>{product.price} ₽</strong> | Остаток:{' '}
+                    <strong>{product.stock} шт.</strong>
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     Категория: {product.categoryName}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={() => handleOpenDialog(product)}
-                  >
+                  <Button variant="outlined" size="small" onClick={() => handleOpenDialog(product)}>
                     Изменить
                   </Button>
                   <Button
@@ -186,79 +188,122 @@ export const ProductsManagement = () => {
       </Box>
 
       <Dialog open={isDialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {editingProduct ? 'Редактировать товар' : 'Создать товар'}
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Название"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            margin="normal"
-            required
-          />
-          <TextField
-            fullWidth
-            label="Описание"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            margin="normal"
-            multiline
-            rows={2}
-          />
-          <TextField
-            fullWidth
-            label="Цена (₽)"
-            type="number"
-            value={formData.price}
-            onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
-            margin="normal"
-            required
-          />
-          <TextField
-            fullWidth
-            label="Количество на складе"
-            type="number"
-            value={formData.stock}
-            onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) })}
-            margin="normal"
-            required
-          />
-          <FormControl fullWidth margin="normal" required>
-            <InputLabel>Категория</InputLabel>
-            <Select
-              value={formData.categoryId}
-              label="Категория"
-              onChange={(e) => setFormData({ ...formData, categoryId: e.target.value as number })}
-            >
-              {categories.map((cat) => (
-                <MenuItem key={cat.id} value={cat.id}>
-                  {cat.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <TextField
-            fullWidth
-            label="URL изображения (необязательно)"
-            value={formData.imageUrl}
-            onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-            margin="normal"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Отмена</Button>
-          <Button
-            onClick={handleSave}
-            variant="contained"
-            disabled={!formData.name || formData.price <= 0 || formData.categoryId === 0}
-          >
-            Сохранить
-          </Button>
-        </DialogActions>
+        <DialogTitle>{editingProduct ? 'Редактировать товар' : 'Создать товар'}</DialogTitle>
+        <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+          <DialogContent>
+            <TextField
+              fullWidth
+              label="Название"
+              {...register('name', {
+                required: 'Название обязательно',
+                minLength: {
+                  value: 2,
+                  message: 'Минимум 2 символа',
+                },
+                maxLength: {
+                  value: 200,
+                  message: 'Максимум 200 символов',
+                },
+              })}
+              error={!!errors.name}
+              helperText={errors.name?.message}
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              label="Описание"
+              {...register('description', {
+                maxLength: {
+                  value: 1000,
+                  message: 'Максимум 1000 символов',
+                },
+              })}
+              error={!!errors.description}
+              helperText={errors.description?.message}
+              margin="normal"
+              multiline
+              rows={2}
+            />
+            <TextField
+              fullWidth
+              label="Цена (₽)"
+              type="number"
+              {...register('price', {
+                required: 'Цена обязательна',
+                min: {
+                  value: 0.01,
+                  message: 'Цена должна быть больше 0',
+                },
+                max: {
+                  value: 1000000,
+                  message: 'Цена слишком большая',
+                },
+              })}
+              error={!!errors.price}
+              helperText={errors.price?.message}
+              margin="normal"
+              inputProps={{ step: '0.01' }}
+            />
+            <TextField
+              fullWidth
+              label="Количество на складе"
+              type="number"
+              {...register('stock', {
+                required: 'Количество обязательно',
+                min: {
+                  value: 0,
+                  message: 'Количество не может быть отрицательным',
+                },
+                max: {
+                  value: 100000,
+                  message: 'Количество слишком большое',
+                },
+              })}
+              error={!!errors.stock}
+              helperText={errors.stock?.message}
+              margin="normal"
+              inputProps={{ step: '1' }}
+            />
+            <FormControl fullWidth margin="normal" error={!!errors.categoryId}>
+              <InputLabel>Категория</InputLabel>
+              <Controller
+                name="categoryId"
+                control={control}
+                rules={{ required: 'Категория обязательна', min: 1 }}
+                render={({ field }) => (
+                  <Select {...field} label="Категория">
+                    {categories.map(cat => (
+                      <MenuItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                )}
+              />
+              {errors.categoryId && <FormHelperText>{errors.categoryId.message}</FormHelperText>}
+            </FormControl>
+            <TextField
+              fullWidth
+              label="URL изображения (необязательно)"
+              {...register('imageUrl', {
+                pattern: {
+                  value: /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/,
+                  message: 'Неверный формат URL',
+                },
+              })}
+              error={!!errors.imageUrl}
+              helperText={errors.imageUrl?.message}
+              margin="normal"
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDialog}>Отмена</Button>
+            <Button type="submit" variant="contained">
+              Сохранить
+            </Button>
+          </DialogActions>
+        </Box>
       </Dialog>
     </Box>
   );
 };
-

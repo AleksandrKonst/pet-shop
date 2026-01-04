@@ -3,16 +3,12 @@ import { Box } from '@mui/material';
 
 export const ImageCarousel = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
-  
-  const images = [
-    '/1.jpg',
-    '/2.jpg',
-    '/3.jpg',
-  ];
+
+  const images = ['/1.jpg', '/2.jpg', '/3.jpg'];
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % images.length);
+      setCurrentSlide(prev => (prev + 1) % images.length);
     }, 5000); // Меняем каждые 5 секунд
 
     return () => clearInterval(timer);
@@ -23,15 +19,24 @@ export const ImageCarousel = () => {
   };
 
   const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % images.length);
+    setCurrentSlide(prev => (prev + 1) % images.length);
   };
 
   const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + images.length) % images.length);
+    setCurrentSlide(prev => (prev - 1 + images.length) % images.length);
   };
 
   return (
-    <Box sx={{ position: 'relative', width: '100%', height: { xs: 250, md: 400 }, overflow: 'hidden', borderRadius: 2, mb: 4 }}>
+    <Box
+      sx={{
+        position: 'relative',
+        width: '100%',
+        height: { xs: 250, md: 400 },
+        overflow: 'hidden',
+        borderRadius: 2,
+        mb: 4,
+      }}
+    >
       {/* Изображения */}
       {images.map((img, index) => (
         <Box
@@ -127,4 +132,3 @@ export const ImageCarousel = () => {
     </Box>
   );
 };
-

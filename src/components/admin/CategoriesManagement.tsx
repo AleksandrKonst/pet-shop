@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import {
   Box,
   Button,
@@ -12,43 +13,48 @@ import {
   DialogActions,
   Alert,
   CircularProgress,
-  IconButton,
 } from '@mui/material';
-import { categoriesApi, Category } from '@/services/api';
+import {
+  useGetCategoriesQuery,
+  useCreateCategoryMutation,
+  useUpdateCategoryMutation,
+  useDeleteCategoryMutation,
+} from '@/store/api/categoriesApi';
+import type { Category } from '@/store/api/categoriesApi';
+
+interface CategoryFormData {
+  name: string;
+  description: string;
+}
 
 export const CategoriesManagement = () => {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [formData, setFormData] = useState({ name: '', description: '' });
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
+  const { data: categories = [], isLoading } = useGetCategoriesQuery();
+  const [createCategory] = useCreateCategoryMutation();
+  const [updateCategory] = useUpdateCategoryMutation();
+  const [deleteCategory] = useDeleteCategoryMutation();
 
-  const loadCategories = async () => {
-    try {
-      setIsLoading(true);
-      const response = await categoriesApi.getAll();
-      setCategories(response.data);
-    } catch (err) {
-      setError('Ошибка загрузки категорий');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CategoryFormData>({
+    mode: 'onBlur',
+  });
 
   const handleOpenDialog = (category?: Category) => {
     if (category) {
       setEditingCategory(category);
-      setFormData({ name: category.name, description: category.description });
+      reset({ name: category.name, description: category.description });
     } else {
       setEditingCategory(null);
-      setFormData({ name: '', description: '' });
+      reset({ name: '', description: '' });
     }
     setIsDialogOpen(true);
   };
@@ -56,23 +62,24 @@ export const CategoriesManagement = () => {
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setEditingCategory(null);
-    setFormData({ name: '', description: '' });
+    reset({ name: '', description: '' });
   };
 
-  const handleSave = async () => {
+  const onSubmit = async (data: CategoryFormData) => {
     try {
       if (editingCategory) {
-        await categoriesApi.update(editingCategory.id, formData);
+        await updateCategory({ id: editingCategory.id, data }).unwrap();
         setSuccess('Категория обновлена');
       } else {
-        await categoriesApi.create(formData);
+        await createCategory(data).unwrap();
         setSuccess('Категория создана');
       }
       handleCloseDialog();
-      loadCategories();
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка сохранения');
+    } catch (error) {
+      console.error('Error saving category:', error);
+      setError('Ошибка сохранения');
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -80,12 +87,13 @@ export const CategoriesManagement = () => {
     if (!window.confirm('Удалить категорию?')) return;
 
     try {
-      await categoriesApi.delete(id);
+      await deleteCategory(id).unwrap();
       setSuccess('Категория удалена');
-      loadCategories();
       setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка удаления');
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      setError('Ошибка удаления');
+      setTimeout(() => setError(''), 3000);
     }
   };
 
@@ -118,7 +126,7 @@ export const CategoriesManagement = () => {
       </Box>
 
       <Box sx={{ display: 'grid', gap: 2 }}>
-        {categories.map((category) => (
+        {categories.map(category => (
           <Card key={category.id}>
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
@@ -159,37 +167,50 @@ export const CategoriesManagement = () => {
         <DialogTitle>
           {editingCategory ? 'Редактировать категорию' : 'Создать категорию'}
         </DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Название"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            margin="normal"
-            required
-          />
-          <TextField
-            fullWidth
-            label="Описание"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            margin="normal"
-            multiline
-            rows={3}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Отмена</Button>
-          <Button
-            onClick={handleSave}
-            variant="contained"
-            disabled={!formData.name}
-          >
-            Сохранить
-          </Button>
-        </DialogActions>
+        <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+          <DialogContent>
+            <TextField
+              fullWidth
+              label="Название"
+              {...register('name', {
+                required: 'Название обязательно',
+                minLength: {
+                  value: 2,
+                  message: 'Минимум 2 символа',
+                },
+                maxLength: {
+                  value: 100,
+                  message: 'Максимум 100 символов',
+                },
+              })}
+              error={!!errors.name}
+              helperText={errors.name?.message}
+              margin="normal"
+            />
+            <TextField
+              fullWidth
+              label="Описание"
+              {...register('description', {
+                maxLength: {
+                  value: 500,
+                  message: 'Максимум 500 символов',
+                },
+              })}
+              error={!!errors.description}
+              helperText={errors.description?.message}
+              margin="normal"
+              multiline
+              rows={3}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDialog}>Отмена</Button>
+            <Button type="submit" variant="contained">
+              Сохранить
+            </Button>
+          </DialogActions>
+        </Box>
       </Dialog>
     </Box>
   );
 };
-

@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
 import {
   Container,
   Box,
@@ -10,30 +10,61 @@ import {
   Typography,
   Alert,
 } from '@mui/material';
-import { useAuth } from '@/contexts/AuthContext';
+import { useLoginMutation } from '@/store/api/authApi';
+import { useAppDispatch } from '@/store/hooks';
+import { setCredentials } from '@/store/slices/authSlice';
+
+interface LoginFormData {
+  email: string;
+  password: string;
+}
 
 export const LoginPage = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-
-  const { login } = useAuth();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const [login, { isLoading, error }] = useLoginMutation();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    mode: 'onBlur',
+  });
 
+  const onSubmit = async (data: LoginFormData) => {
     try {
-      await login({ email, password });
+      const result = await login(data).unwrap();
+      dispatch(
+        setCredentials({
+          user: {
+            id: result.id,
+            username: result.username,
+            email: result.email,
+            role: result.role,
+          },
+          token: result.token,
+        })
+      );
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка входа. Проверьте данные.');
-    } finally {
-      setIsLoading(false);
+    } catch (err) {
+      console.error('Login error:', err);
     }
+  };
+
+  const getErrorMessage = () => {
+    if (!error) return null;
+
+    if (
+      'data' in error &&
+      error.data &&
+      typeof error.data === 'object' &&
+      'message' in error.data
+    ) {
+      return String(error.data.message);
+    }
+
+    return 'Ошибка входа. Проверьте данные.';
   };
 
   return (
@@ -47,18 +78,24 @@ export const LoginPage = () => {
 
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
+                {getErrorMessage()}
               </Alert>
             )}
 
-            <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+            <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ mt: 2 }}>
               <TextField
                 fullWidth
                 label="Email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+                {...register('email', {
+                  required: 'Email обязателен',
+                  pattern: {
+                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                    message: 'Неверный формат email',
+                  },
+                })}
+                error={!!errors.email}
+                helperText={errors.email?.message}
                 margin="normal"
                 autoComplete="email"
               />
@@ -67,9 +104,15 @@ export const LoginPage = () => {
                 fullWidth
                 label="Пароль"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                {...register('password', {
+                  required: 'Пароль обязателен',
+                  minLength: {
+                    value: 6,
+                    message: 'Минимум 6 символов',
+                  },
+                })}
+                error={!!errors.password}
+                helperText={errors.password?.message}
                 margin="normal"
                 autoComplete="current-password"
               />
@@ -100,4 +143,3 @@ export const LoginPage = () => {
     </Container>
   );
 };
-

@@ -141,3 +141,4 @@ Authorization: Bearer {ваш-токен}
 - CORS настроен для работы с React приложением на `http://localhost:3000`
 
 
+

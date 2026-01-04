@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -11,32 +10,20 @@ import {
   CircularProgress,
   Alert,
 } from '@mui/material';
-import { useAuth } from '@/contexts/AuthContext';
-import { categoriesApi, Category } from '@/services/api';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { logout } from '@/store/slices/authSlice';
+import { useGetCategoriesQuery } from '@/store/api/categoriesApi';
 import { ImageCarousel } from '@/components/carousel/ImageCarousel';
 
 export const HomePage = () => {
-  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const dispatch = useAppDispatch();
+  const user = useAppSelector(state => state.auth.user);
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
+  const { data: categories = [], isLoading, error } = useGetCategoriesQuery();
 
-  const loadCategories = async () => {
-    try {
-      setIsLoading(true);
-      const response = await categoriesApi.getAll();
-      setCategories(response.data);
-    } catch (err: any) {
-      setError('Ошибка загрузки категорий');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleLogout = () => {
+    dispatch(logout());
   };
 
   const handleCategoryClick = (categoryId: number) => {
@@ -68,10 +55,8 @@ export const HomePage = () => {
                     </Button>
                   </>
                 )}
-                <Typography variant="body1">
-                  {user.username}
-                </Typography>
-                <Button variant="outlined" onClick={logout}>
+                <Typography variant="body1">{user.username}</Typography>
+                <Button variant="outlined" onClick={handleLogout}>
                   Выйти
                 </Button>
               </>
@@ -88,13 +73,7 @@ export const HomePage = () => {
           </Box>
         </Box>
 
-        <Typography
-          variant="h6"
-          component="h2"
-          align="center"
-          color="text.secondary"
-          gutterBottom
-        >
+        <Typography variant="h6" component="h2" align="center" color="text.secondary" gutterBottom>
           Добро пожаловать в наш магазин!
         </Typography>
 
@@ -103,7 +82,7 @@ export const HomePage = () => {
 
         {error && (
           <Alert severity="error" sx={{ mt: 2 }}>
-            {error}
+            Ошибка загрузки категорий
           </Alert>
         )}
 
@@ -113,7 +92,7 @@ export const HomePage = () => {
           </Box>
         ) : (
           <Stack spacing={3} sx={{ mt: 4 }} direction={{ xs: 'column', md: 'row' }}>
-            {categories.map((category) => (
+            {categories.map(category => (
               <Box key={category.id} sx={{ flex: 1 }}>
                 <Card>
                   <CardContent>
@@ -123,7 +102,11 @@ export const HomePage = () => {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       {category.description}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ display: 'block', mb: 2 }}
+                    >
                       Товаров: {category.productCount}
                     </Typography>
                     <Button
@@ -144,4 +127,3 @@ export const HomePage = () => {
     </Container>
   );
 };
-
